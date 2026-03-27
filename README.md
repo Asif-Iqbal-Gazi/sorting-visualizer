@@ -4,7 +4,7 @@ Interactive sorting algorithm visualizer built with C++ and SDL3.
 
 ## Algorithms
 
-> Coming soon
+> Coming soon — bubble sort next
 
 ## Dependencies
 
