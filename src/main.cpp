@@ -1,18 +1,25 @@
 #include <SDL3/SDL.h>
 #include <algorithm>
+#include <string>
 #include <vector>
 
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
-const int NUM_BARS = 50;
 const int BAR_PADDING = 1;
-const int STEP_DELAY_MS = 15; // milliseconds between sort steps
+
+const int MIN_BARS = 10;
+const int MAX_BARS = 200;
+const int BAR_STEP = 10;
+
+const int MIN_DELAY = 1;
+const int MAX_DELAY = 100;
+const int DELAY_STEP = 5;
 
 enum class State { IDLE, SORTING, DONE };
 
 struct BubbleSort {
-  int i = 0; // outer loop counter (how many passes done)
-  int j = 0; // inner loop counter (current comparison index)
+  int i = 0;
+  int j = 0;
 };
 
 void initArray(std::vector<int> &arr) {
@@ -24,25 +31,15 @@ void initArray(std::vector<int> &arr) {
   }
 }
 
-// Advance bubble sort by one comparison step.
-// Returns true if the sort is complete.
 bool stepBubbleSort(std::vector<int> &arr, BubbleSort &bs) {
   int n = arr.size();
-
-  // Compare adjacent pair at position j
   if (arr[bs.j] > arr[bs.j + 1])
     std::swap(arr[bs.j], arr[bs.j + 1]);
-
   bs.j++;
-
-  // End of inner loop pass: the largest unsorted element has bubbled to its
-  // final position
   if (bs.j >= n - 1 - bs.i) {
     bs.i++;
     bs.j = 0;
   }
-
-  // Sort is done when we've completed n-1 passes
   return bs.i >= n - 1;
 }
 
@@ -61,21 +58,38 @@ void renderBars(SDL_Renderer *renderer, const std::vector<int> &arr,
     rect.h = barHeight;
 
     if (state == State::DONE) {
-      // All bars green when sorted
       SDL_SetRenderDrawColor(renderer, 0, 220, 100, 255);
     } else if (state == State::SORTING && (i == bs.j || i == bs.j + 1)) {
-      // Currently compared pair: orange
       SDL_SetRenderDrawColor(renderer, 255, 165, 0, 255);
     } else if (state == State::SORTING && i >= (int)arr.size() - bs.i) {
-      // Already sorted suffix: green
       SDL_SetRenderDrawColor(renderer, 0, 220, 100, 255);
     } else {
-      // Default: light blue
       SDL_SetRenderDrawColor(renderer, 100, 200, 255, 255);
     }
 
     SDL_RenderFillRect(renderer, &rect);
   }
+}
+
+// Updates the window title to reflect current settings and state
+void updateTitle(SDL_Window *window, int numBars, int stepDelay, State state) {
+  std::string status;
+  switch (state) {
+  case State::IDLE:
+    status = "SPACE to sort";
+    break;
+  case State::SORTING:
+    status = "Sorting...";
+    break;
+  case State::DONE:
+    status = "Done! R to reset";
+    break;
+  }
+
+  std::string title = "Sorting Visualizer  |  Bars: " + std::to_string(numBars) +
+                      " (UP/DOWN)  |  Speed: " + std::to_string(stepDelay) +
+                      "ms (LEFT/RIGHT)  |  " + status;
+  SDL_SetWindowTitle(window, title.c_str());
 }
 
 int main(int argc, char *argv[]) {
@@ -100,17 +114,24 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  std::vector<int> arr(NUM_BARS);
+  int numBars = 50;
+  int stepDelay = 15;
+
+  std::vector<int> arr(numBars);
   initArray(arr);
 
   State state = State::IDLE;
   BubbleSort bs;
   Uint64 lastStepTime = 0;
 
+  updateTitle(window, numBars, stepDelay, state);
+
   bool running = true;
   SDL_Event event;
 
   while (running) {
+    bool titleDirty = false;
+
     while (SDL_PollEvent(&event)) {
       if (event.type == SDL_EVENT_QUIT)
         running = false;
@@ -122,34 +143,73 @@ int main(int argc, char *argv[]) {
           break;
 
         case SDLK_SPACE:
-          // Start sorting only if idle
           if (state == State::IDLE) {
             state = State::SORTING;
             bs = BubbleSort{};
             lastStepTime = SDL_GetTicks();
+            titleDirty = true;
           }
           break;
 
         case SDLK_R:
-          // Reset: reshuffle and go back to idle
           initArray(arr);
           state = State::IDLE;
           bs = BubbleSort{};
+          titleDirty = true;
+          break;
+
+        case SDLK_UP:
+          // Increase bar count (only when idle so we can reinitialize cleanly)
+          if (state == State::IDLE && numBars + BAR_STEP <= MAX_BARS) {
+            numBars += BAR_STEP;
+            arr.resize(numBars);
+            initArray(arr);
+            titleDirty = true;
+          }
+          break;
+
+        case SDLK_DOWN:
+          if (state == State::IDLE && numBars - BAR_STEP >= MIN_BARS) {
+            numBars -= BAR_STEP;
+            arr.resize(numBars);
+            initArray(arr);
+            titleDirty = true;
+          }
+          break;
+
+        case SDLK_RIGHT:
+          // Faster = lower delay
+          if (stepDelay - DELAY_STEP >= MIN_DELAY) {
+            stepDelay -= DELAY_STEP;
+            titleDirty = true;
+          }
+          break;
+
+        case SDLK_LEFT:
+          // Slower = higher delay
+          if (stepDelay + DELAY_STEP <= MAX_DELAY) {
+            stepDelay += DELAY_STEP;
+            titleDirty = true;
+          }
           break;
         }
       }
     }
 
-    // Advance the sort one step per STEP_DELAY_MS
     if (state == State::SORTING) {
       Uint64 now = SDL_GetTicks();
-      if (now - lastStepTime >= STEP_DELAY_MS) {
+      if (now - lastStepTime >= (Uint64)stepDelay) {
         bool done = stepBubbleSort(arr, bs);
-        if (done)
+        if (done) {
           state = State::DONE;
+          titleDirty = true;
+        }
         lastStepTime = now;
       }
     }
+
+    if (titleDirty)
+      updateTitle(window, numBars, stepDelay, state);
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);

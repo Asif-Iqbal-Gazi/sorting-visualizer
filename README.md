@@ -26,4 +26,6 @@ cmake --build build
 |-----|--------|
 | `SPACE` | Start sorting |
 | `R` | Reshuffle and reset |
+| `UP` / `DOWN` | Increase / decrease bar count (idle only) |
+| `RIGHT` / `LEFT` | Increase / decrease speed |
 | `ESC` | Quit |
