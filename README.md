@@ -4,7 +4,7 @@ Interactive sorting algorithm visualizer built with C++ and SDL3.
 
 ## Algorithms
 
-> Coming soon — bubble sort next
+- Bubble Sort
 
 ## Dependencies
 
@@ -22,4 +22,8 @@ cmake --build build
 
 ## Controls
 
-> Coming soon
+| Key | Action |
+|-----|--------|
+| `SPACE` | Start sorting |
+| `R` | Reshuffle and reset |
+| `ESC` | Quit |
